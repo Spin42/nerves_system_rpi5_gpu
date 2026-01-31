@@ -34,6 +34,7 @@ path = [
  "package/**",
  "external.mk",
  "post-build.sh",
+ "post-build-nvidia-cleanup.sh",
  "post-createfs.sh"
 ]
 precedence = "aggregate"
