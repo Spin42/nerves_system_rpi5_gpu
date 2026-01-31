@@ -1,0 +1,8 @@
+config BR2_PACKAGE_FFMPEG_COMPAT5
+	bool "FFmpeg 5.1 Compatibility Libraries"
+	help
+	  FFmpeg 5.1 compatibility libraries for applications requiring
+	  FFmpeg 5.x ABI (libavcodec.so.59, libavformat.so.59,
+	  libavutil.so.57, libswscale.so.6).
+
+	  https://ffmpeg.org/

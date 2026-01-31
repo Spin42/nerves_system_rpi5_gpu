@@ -1,0 +1,13 @@
+config BR2_PACKAGE_NVIDIA_CUDA_TOOLKIT
+	bool "NVIDIA CUDA Toolkit"
+	depends on BR2_aarch64 && BR2_PACKAGE_NVIDIA_DRIVER_AARCH64 && BR2_PACKAGE_NVIDIA_OPEN_GPU_MODULES_AARCH64
+	help
+	  NVIDIA CUDA Toolkit for aarch64 (ARM SBSA).
+
+	  This package installs the CUDA runtime libraries and tools
+	  needed for running CUDA applications.
+
+	  https://developer.nvidia.com/cuda-toolkit
+
+comment "nvidia-cuda-toolkit needs aarch64, nvidia-driver-aarch64 and nvidia-open-gpu-modules-aarch64"
+	depends on !BR2_aarch64 || !BR2_PACKAGE_NVIDIA_DRIVER_AARCH64 || !BR2_PACKAGE_NVIDIA_OPEN_GPU_MODULES_AARCH64

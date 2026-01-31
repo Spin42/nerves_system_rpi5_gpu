@@ -1,0 +1,17 @@
+config BR2_PACKAGE_NVIDIA_CUDNN
+  bool "NVIDIA cuDNN (Deep Neural Network Library)"
+  depends on BR2_aarch64 && BR2_PACKAGE_NVIDIA_DRIVER_AARCH64 && BR2_PACKAGE_NVIDIA_OPEN_GPU_MODULES_AARCH64
+    help
+      NVIDIA CUDA Deep Neural Network Library (cuDNN) for aarch64.
+
+      cuDNN provides highly tuned implementations for standard routines
+      such as forward and backward convolution, attention, matmul,
+      pooling, and normalization.
+
+      Installs libcudnn runtime libraries and development headers
+      compatible with CUDA 12.x.
+
+      https://developer.nvidia.com/cudnn
+
+comment "cuDNN needs aarch64, nvidia-driver-aarch64 and nvidia-open-gpu-modules-aarch64"
+  depends on !BR2_aarch64 || !BR2_PACKAGE_NVIDIA_DRIVER_AARCH64 || !BR2_PACKAGE_NVIDIA_OPEN_GPU_MODULES_AARCH64

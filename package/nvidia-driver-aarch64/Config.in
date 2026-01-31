@@ -1,0 +1,16 @@
+config BR2_PACKAGE_NVIDIA_DRIVER_AARCH64
+    bool "NVIDIA Userspace Drivers"
+    depends on BR2_aarch64 && BR2_LINUX_KERNEL && BR2_USE_MMU # fork()
+    select BR2_PACKAGE_HAS_LIBOPENCL
+    help
+      NVIDIA userspace drivers and libraries extracted from
+      the official .run installer.
+
+      https://www.nvidia.com/drivers
+
+if BR2_PACKAGE_NVIDIA_DRIVER_AARCH64
+
+config BR2_PACKAGE_PROVIDES_LIBOPENCL
+    default "nvidia-driver-aarch64"
+
+endif

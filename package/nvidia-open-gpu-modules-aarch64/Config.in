@@ -1,0 +1,8 @@
+config BR2_PACKAGE_NVIDIA_OPEN_GPU_MODULES_AARCH64
+  bool "NVIDIA Open GPU Kernel Modules (aarch64)"
+    depends on BR2_LINUX_KERNEL && BR2_PACKAGE_NVIDIA_DRIVER_AARCH64 && BR2_USE_MMU
+    help
+      NVIDIA open GPU kernel modules from mariobalanica's fork
+      with non-coherent ARM fixes for Raspberry Pi 5.
+
+      https://github.com/NVIDIA/open-gpu-kernel-modules

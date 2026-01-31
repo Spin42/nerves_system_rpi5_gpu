@@ -1,0 +1,8 @@
+config BR2_PACKAGE_FFMPEG_COMPAT
+	bool "FFmpeg 4.4 Compatibility Libraries"
+	help
+	  FFmpeg 4.4 compatibility libraries for applications requiring
+	  older FFmpeg ABI (libavcodec.so.58, libavformat.so.58,
+	  libavutil.so.56, libswscale.so.5).
+
+	  https://ffmpeg.org/

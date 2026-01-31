@@ -3,7 +3,10 @@
 # If these are non-proprietary, please consider contributing them back to
 # Nerves or Buildroot.
 
-source "$NERVES_DEFCONFIG_DIR/package/hailort/Config.in"
-source "$NERVES_DEFCONFIG_DIR/package/hailort-drivers/Config.in"
-source "$NERVES_DEFCONFIG_DIR/package/hailort-firmware/Config.in"
-source "$NERVES_DEFCONFIG_DIR/package/spdlog_hailort/Config.in"
+source "$NERVES_DEFCONFIG_DIR/package/nvidia-driver-aarch64/Config.in"
+source "$NERVES_DEFCONFIG_DIR/package/nvidia-open-gpu-modules-aarch64/Config.in"
+source "$NERVES_DEFCONFIG_DIR/package/nvidia-cuda-toolkit/Config.in"
+source "$NERVES_DEFCONFIG_DIR/package/nvidia-nccl/Config.in"
+source "$NERVES_DEFCONFIG_DIR/package/nvidia-cudnn/Config.in"
+source "$NERVES_DEFCONFIG_DIR/package/ffmpeg-compat/Config.in"
+source "$NERVES_DEFCONFIG_DIR/package/ffmpeg-compat5/Config.in"
