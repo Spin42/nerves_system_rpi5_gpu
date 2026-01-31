@@ -133,6 +133,44 @@ provisioning.conf file location by setting the environment variable
 will set the `nerves_serial_number`, if you override the location to this file,
 you will be responsible for setting this yourself.
 
+## NVIDIA GPU Support
+
+This system includes packages for NVIDIA GPU acceleration, primarily targeting
+machine learning workloads with [EXLA](https://hex.pm/packages/exla) and
+[Evision](https://hex.pm/packages/evision).
+
+### NVIDIA Packages
+
+| Package | Version | Description |
+| ------- | ------- | ----------- |
+| `nvidia-driver-aarch64` | 580.95.05 | NVIDIA userspace driver libraries (`libcuda.so`, `libnvidia-ml.so`, `nvidia-smi`) |
+| `nvidia-open-gpu-modules-aarch64` | [mariobalanica/open-gpu-kernel-modules](https://github.com/mariobalanica/open-gpu-kernel-modules) @ `non-coherent-arm-fixes` | Open-source NVIDIA kernel modules for aarch64 |
+| `nvidia-cuda-toolkit` | 12.9.0 | CUDA runtime libraries (cuBLAS, cuFFT, cuSPARSE, cuSOLVER, NPP, nvRTC) |
+| `nvidia-cudnn` | 9.18.1.3 | CUDA Deep Neural Network library for accelerated neural network operations |
+| `nvidia-nccl` | 2.29.2 | NVIDIA Collective Communication Library for multi-GPU communication |
+
+### NVIDIA Library Cleanup Script
+
+The full NVIDIA stack installs many libraries that may not be needed for typical
+EXLA/Evision workloads. To reduce image size, the `post-build-nvidia-cleanup.sh`
+script removes unused libraries while preserving those required at runtime.
+
+**Required libraries kept:**
+- CUDA core: `libcuda.so`, `libcudart.so`, `libnvrtc.so`, `libnvJitLink.so`
+- Math libraries: `libcublas.so`, `libcublasLt.so`, `libcufft.so`, `libcusolver.so`, `libcusparse.so`
+- cuDNN: `libcudnn*.so` (core, ops, graph, cnn, adv, engines, heuristic)
+- NCCL: `libnccl.so`
+- NPP (image processing): `libnppc.so`, `libnppig.so`, `libnppial.so`, `libnppicc.so`, `libnppidei.so`, `libnppist.so`, `libnppif.so`, `libnppim.so`, `libnppitc.so`
+
+**Libraries removed:**
+- Deprecated/unused: `libcuinj`, `libcudadevrt`, `libcupti`, `libnvvm`
+- Static libraries: `libcudart_static`, `libcusolver_static`, `libcublas_static`
+- OpenCL: `libnvidia-opencl`, `libOpenCL`
+- Unused utilities: `libcufftw`, `libnvfatbin`, `libnvptxcompiler`
+
+To customize which libraries are kept, modify the `REQUIRED_LIBS` and
+`UNUSED_PATTERNS` arrays in the script.
+
 ## Linux kernel and RPi firmware/userland
 
 There's a subtle coupling between the `nerves_system_br` version and the Linux
