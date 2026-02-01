@@ -59,6 +59,10 @@ REQUIRED_LIBS=(
 	"libnppif.so*"
 	"libnppim.so*"
 	"libnppitc.so*"
+
+	# NVIDIA SMI
+	"libnvidia-ml*"
+
 )
 
 # Patterns to remove (unused NVIDIA libraries)
@@ -95,7 +99,6 @@ UNUSED_PATTERNS=(
 	"libnccl_net*"
 	
 	# Unused NVIDIA libraries
-	"libnvidia-ml*"
 	"libnvidia-nvcuvid*"
 	"libnvidia-encode*"
 	"libnvidia-ptxjitcompiler*"
