@@ -78,7 +78,7 @@ defmodule NervesSystemRpi5Gpu.MixProject do
   end
 
   defp description do
-    "Nerves System - Raspberry Pi 5 (64-bits)"
+    "Nerves System - Raspberry Pi 5 (64-bits with Nvidia GPU support)"
   end
 
   defp docs do
