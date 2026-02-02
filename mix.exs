@@ -45,7 +45,8 @@ defmodule NervesSystemRpi5Gpu.MixProject do
     [
       type: :system,
       artifact_sites: [
-        {:github_releases, "#{@github_organization}/#{@app}"}
+        {:github_releases, "#{@github_organization}/#{@app}"},
+        {:prefix, "https://www.dropbox.com/scl/fi/wqekrb8lbkyaevbjo29hq", query_params: %{"rlkey" => "0oxfpz9ug71vrm8exn7x1docn", "e" => "1", "st" => "xe1sgi2n", "dl" => "1"}}
       ],
       build_runner_opts: build_runner_opts(),
       platform: Nerves.System.BR,
@@ -78,7 +79,7 @@ defmodule NervesSystemRpi5Gpu.MixProject do
   end
 
   defp description do
-    "Nerves System - Raspberry Pi 5 (64-bits with Nvidia GPU support)"
+    "Nerves System - Raspberry Pi 5 (64-bits with Nvidia   GPU support)"
   end
 
   defp docs do
