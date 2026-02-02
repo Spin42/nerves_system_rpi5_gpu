@@ -78,10 +78,6 @@ define NVIDIA_DRIVER_AARCH64_INSTALL_TARGET_CMDS
     # OpenCL ICD configuration
     mkdir -p $(TARGET_DIR)/etc/OpenCL/vendors
     echo "libnvidia-opencl.so.1" > $(TARGET_DIR)/etc/OpenCL/vendors/nvidia.icd
-
-    # Create device nodes script (run at boot)
-    $(INSTALL) -D -m 0755 $(NVIDIA_DRIVER_AARCH64_PKGDIR)/nvidia-device-nodes.sh \
-        $(TARGET_DIR)/etc/init.d/S10nvidia
 endef
 
 $(eval $(generic-package))
