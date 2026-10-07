@@ -57,12 +57,33 @@ if [ "$1" = "--mount-bundles" ]; then
     exit 0
 fi
 
-# No NVIDIA GPU (or driver) present: nothing to do, keep booting.
-if ! modprobe nvidia 2>/dev/null; then
+# Pre-Turing GPUs (Maxwell, Pascal, Volta, e.g. the Tesla P4) have no GSP and
+# aren't supported by the open kernel modules. When the open module finds no
+# GPU, use the proprietary modules (nvidia-proprietary-modules-aarch64).
+PROPRIETARY=/usr/lib/nvidia-proprietary
+
+has_gpu() {
+    for g in /proc/driver/nvidia/gpus/*; do
+        [ -e "$g" ] && return 0
+    done
+    return 1
+}
+
+load_proprietary() {
+    [ -f "$PROPRIETARY/nvidia.ko" ] || return 1
+    rmmod nvidia_drm nvidia_modeset nvidia_uvm nvidia 2>/dev/null
+    insmod "$PROPRIETARY/nvidia.ko" || return 1
+    insmod "$PROPRIETARY/nvidia-uvm.ko"
+    log "using the proprietary kernel modules (GPU not supported by the open ones)"
+}
+
+if modprobe nvidia 2>/dev/null && has_gpu; then
+    modprobe nvidia_uvm 2>/dev/null
+elif ! load_proprietary || ! has_gpu; then
+    # No NVIDIA GPU (or driver) present: nothing to do, keep booting.
     mount_bundles
     exit 0
 fi
-modprobe nvidia_uvm 2>/dev/null
 
 while read -r major name; do
     case "$name" in

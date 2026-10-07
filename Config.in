@@ -5,6 +5,7 @@
 
 source "$NERVES_DEFCONFIG_DIR/package/nvidia-driver-aarch64/Config.in"
 source "$NERVES_DEFCONFIG_DIR/package/nvidia-open-gpu-modules-aarch64/Config.in"
+source "$NERVES_DEFCONFIG_DIR/package/nvidia-proprietary-modules-aarch64/Config.in"
 source "$NERVES_DEFCONFIG_DIR/package/nvidia-cuda-toolkit/Config.in"
 source "$NERVES_DEFCONFIG_DIR/package/nvidia-nccl/Config.in"
 source "$NERVES_DEFCONFIG_DIR/package/nvidia-cudnn/Config.in"
