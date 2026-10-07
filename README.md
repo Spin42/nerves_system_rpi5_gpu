@@ -306,6 +306,21 @@ Hosts newer than Buildroot supports (e.g. Ubuntu 26.04) must build in Docker:
 set `NERVES_BUILD_RUNNER=docker`. `support/docker/Dockerfile` remaps the
 container's build user to your uid/gid.
 
+### CI and releases
+
+[`.github/workflows/system.yml`](.github/workflows/system.yml) builds the system
+on GitHub Actions, once per distinct content: a quick job computes the
+artifact name (it contains the Nerves checksum of everything that affects the
+build) and the hours-long Buildroot build only runs if no release asset has
+that name yet. Builds are stored on the `ci-artifacts` pre-release, so
+merging a pull request that was already built, or tagging it, doesn't
+rebuild.
+
+To release, bump `VERSION`, merge, then push a matching tag (`v0.9.0`): the
+workflow attaches the tarball to the `v0.9.0` release, where projects using
+this system download it. The NVIDIA bundles are never built or published by
+CI.
+
 ## Linux kernel and RPi firmware/userland
 
 There's a subtle coupling between the `nerves_system_br` version and the Linux
