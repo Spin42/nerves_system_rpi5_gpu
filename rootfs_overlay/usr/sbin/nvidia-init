@@ -170,11 +170,28 @@ fi
 # nvidia-smi) eventually made the GPU fall off the bus (Xid 79) on the Pi 5.
 # The first open initializes the GPU, which can hang with the proprietary
 # modules: don't let it block the boot either.
-if run_with_timeout 30 sh -c "nvidia-smi -pm 1 >/dev/null 2>&1"; then
-    [ -n "$USING_PROPRIETARY" ] && rm -f "$ATTEMPT_MARKER" && log "GPU initialized"
-else
-    log "GPU initialization (nvidia-smi -pm 1) failed or timed out"
-fi
+run_with_timeout 30 sh -c "nvidia-smi -pm 1 >/dev/null 2>&1"
+case $? in
+    0)
+        [ -n "$USING_PROPRIETARY" ] && log "GPU initialized"
+        rm -f "$ATTEMPT_MARKER"
+        ;;
+    124)
+        # Possibly hung in the driver: keep the marker so the next boot skips
+        # the proprietary modules
+        log "GPU initialization (nvidia-smi -pm 1) timed out"
+        ;;
+    *)
+        # A clean failure (e.g. RmInitAdapter failed) is safe to retry
+        log "GPU initialization (nvidia-smi -pm 1) failed"
+        rm -f "$ATTEMPT_MARKER"
+        if [ -n "$USING_PROPRIETARY" ]; then
+            # Further opens of a GPU that failed to initialize can hang
+            # (every nvidia-smi call would), so don't leave the driver bound
+            rmmod nvidia_uvm nvidia 2>/dev/null && log "proprietary modules unloaded"
+        fi
+        ;;
+esac
 
 mount_bundles
 exit 0

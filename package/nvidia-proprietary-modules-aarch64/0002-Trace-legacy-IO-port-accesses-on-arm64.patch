@@ -1,0 +1,74 @@
+From: hello_gpu <noreply@localhost>
+Subject: [PATCH] Trace legacy I/O port accesses on arm64
+
+Diagnostic for POSTing pre-Turing GPUs on hosts without PCI I/O space
+(Raspberry Pi 5): log the I/O ports the VBIOS emulation uses instead of
+faulting on inb()/outb().
+---
+--- a/nvidia/os-interface.c	2025-09-23 12:17:33.000000000 +0200
++++ b/nvidia/os-interface.c	2026-10-07 14:22:56.767382915 +0200
+@@ -856,6 +856,56 @@
+     NV_SPIN_UNLOCK_IRQRESTORE(&nv_error_string_lock, flags);
+ }
+ 
++#if defined(NVCPU_AARCH64)
++/*
++ * Legacy PCI I/O ports, used by the resource manager's VBIOS emulation to POST
++ * pre-Turing GPUs. Hosts like the Raspberry Pi 5 have no PCI I/O space, so
++ * inb()/outb() would fault: trace the accesses instead (reads return all
++ * ones, writes are dropped) to see what the VBIOS needs.
++ */
++static unsigned int nv_io_trace_count;
++
++static void nv_io_trace(const char *op, NvU32 address, NvU32 value)
++{
++    if (nv_io_trace_count < 300)
++        nv_printf(NV_DBG_ERRORS, "NVRM: io-trace %u %s port 0x%04x value 0x%x\n",
++                  nv_io_trace_count, op, address, value);
++    nv_io_trace_count++;
++}
++
++void NV_API_CALL os_io_write_byte(NvU32 address, NvU8 value)
++{
++    nv_io_trace("outb", address, value);
++}
++
++void NV_API_CALL os_io_write_word(NvU32 address, NvU16 value)
++{
++    nv_io_trace("outw", address, value);
++}
++
++void NV_API_CALL os_io_write_dword(NvU32 address, NvU32 value)
++{
++    nv_io_trace("outl", address, value);
++}
++
++NvU8 NV_API_CALL os_io_read_byte(NvU32 address)
++{
++    nv_io_trace("inb", address, 0xff);
++    return 0xff;
++}
++
++NvU16 NV_API_CALL os_io_read_word(NvU32 address)
++{
++    nv_io_trace("inw", address, 0xffff);
++    return 0xffff;
++}
++
++NvU32 NV_API_CALL os_io_read_dword(NvU32 address)
++{
++    nv_io_trace("inl", address, 0xffffffff);
++    return 0xffffffff;
++}
++#else
+ void NV_API_CALL os_io_write_byte(
+     NvU32 address,
+     NvU8 value
+@@ -900,6 +950,7 @@
+ {
+     return inl(address);
+ }
++#endif
+ 
+ 
+ static NvBool NV_API_CALL xen_support_fully_virtualized_kernel(void)
