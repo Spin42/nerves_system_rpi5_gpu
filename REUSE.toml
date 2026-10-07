@@ -76,7 +76,8 @@ path = [
  "rootfs_overlay/etc/boardid.config",
  "rootfs_overlay/etc/erlinit.config",
  "rootfs_overlay/etc/fw_env.config",
- "rootfs_overlay/usr/sbin/nvidia-init"
+ "rootfs_overlay/usr/sbin/nvidia-init",
+ "rootfs_overlay/etc/modprobe.d/nouveau.conf"
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "None"

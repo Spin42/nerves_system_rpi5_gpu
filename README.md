@@ -254,7 +254,22 @@ qualified platform), `kbifInitLtr_GB202: LTR is disabled in the hierarchy`,
 and `BAR 5 [io ...]: can't assign; no space` (the Pi has no PCIe I/O space;
 the GPU doesn't need it).
 
-### Installing the NVIDIA bundles
+### Pre-Turing GPUs (experimental)
+
+GPUs without GSP (Maxwell, Pascal, Volta, e.g. the Tesla P4) aren't supported
+by the open kernel modules. The system also ships NVIDIA's proprietary modules
+from the same driver (package `nvidia-proprietary-modules-aarch64`, in
+`/usr/lib/nvidia-proprietary/`): `nvidia-init` loads them when the open module
+finds no supported GPU and logs `using the proprietary kernel modules`.
+
+The Pi 5 fixes in the open modules can't be applied to the closed part of the
+proprietary driver, which assumes cache-coherent PCIe. Its open interface
+layer is patched instead: the DMA cache-flush fix is ported and system memory
+shared with the GPU is allocated uncached on non-coherent hosts
+(`nv_force_uncached_sysmem`, default on). Whether that is enough for reliable
+compute on the Pi 5 is not verified yet. Pascal needs CUDA 12 (CUDA 13 drops
+it), which the CUDA bundle provides.
+
 
 Build the bundles from NVIDIA's downloads (cached in `~/.nerves/dl`, a few
 minutes; needs `mksquashfs` with zstd support):

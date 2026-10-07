@@ -12,6 +12,16 @@ follows:
    releases, and Linux kernel updates. They're also made to fix bugs and add
    features to the build infrastructure.
 
+## Unreleased
+
+* Changes
+  * Experimental support for pre-Turing GPUs (e.g. Tesla P4): NVIDIA's
+    proprietary kernel modules (`nvidia-proprietary-modules-aarch64`) are
+    shipped next to the open ones and loaded by `nvidia-init` when the open
+    module finds no supported GPU. Their open interface layer is patched for
+    the Pi 5's non-coherent PCIe (DMA cache flushing, uncached system memory).
+  * Enable BusyBox `insmod` (loads the proprietary modules by path).
+
 ## v0.9.0
 
 This is a breaking change: the CUDA toolkit, cuDNN and NCCL libraries are no

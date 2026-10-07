@@ -1,0 +1,17 @@
+config BR2_PACKAGE_NVIDIA_PROPRIETARY_MODULES_AARCH64
+	bool "NVIDIA proprietary kernel modules (pre-Turing GPUs)"
+	depends on BR2_LINUX_KERNEL
+	depends on BR2_PACKAGE_NVIDIA_DRIVER_AARCH64
+	help
+	  NVIDIA's proprietary kernel modules from the same driver release,
+	  for GPUs the open modules don't support (Maxwell, Pascal, Volta:
+	  no GSP), e.g. the Tesla P4.
+
+	  Installed in /usr/lib/nvidia-proprietary/ (outside the module
+	  search path). nvidia-init loads them only when the open modules
+	  find no supported GPU.
+
+	  Experimental on the Raspberry Pi 5: its PCIe is not cache coherent
+	  and the closed part of this driver assumes it is. The open
+	  interface layer is patched to allocate system memory uncached
+	  (module parameter nv_force_uncached_sysmem).

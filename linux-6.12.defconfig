@@ -382,6 +382,10 @@ CONFIG_VIDEO_AD5398=m
 CONFIG_VIDEO_DW9807_VCM=m
 CONFIG_AUXDISPLAY=y
 CONFIG_DRM=m
+# Nouveau POSTs pre-Turing NVIDIA GPUs that nothing else initialized (no PC
+# BIOS on the Pi) before the proprietary driver takes over; blacklisted from
+# automatic loading (etc/modprobe.d/nouveau.conf), loaded by nvidia-init
+CONFIG_DRM_NOUVEAU=m
 CONFIG_DRM_LOAD_EDID_FIRMWARE=y
 CONFIG_DRM_PANEL_ILITEK_ILI9881C=m
 CONFIG_DRM_PANEL_RASPBERRYPI_TOUCHSCREEN=m

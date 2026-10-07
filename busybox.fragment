@@ -1,2 +1,5 @@
 # Compressed kernel modules
 CONFIG_FEATURE_SEAMLESS_XZ=y
+
+# insmod: nvidia-init loads the proprietary NVIDIA modules by path
+CONFIG_INSMOD=y

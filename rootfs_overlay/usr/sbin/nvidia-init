@@ -17,6 +17,24 @@ log() {
     echo "nvidia-init: $*" > /dev/kmsg 2>/dev/null || echo "nvidia-init: $*"
 }
 
+# run_with_timeout <seconds> <command...>: run in the background and stop
+# waiting (leaving it running) after <seconds>. Returns 124 on timeout.
+run_with_timeout() {
+    limit=$1
+    shift
+    "$@" </dev/null >/dev/null 2>&1 &
+    pid=$!
+    waited=0
+    while kill -0 "$pid" 2>/dev/null; do
+        if [ "$waited" -ge "$limit" ]; then
+            return 124
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    wait "$pid"
+}
+
 # Loop-mount the CUDA/cuDNN/NCCL bundles listed in /etc/nvidia-bundles
 # ("<component> <id>" lines) from /root/nvidia/<id>-aarch64.squashfs onto
 # /opt/nvidia/<component>. Another version of a component is used as a
@@ -57,12 +75,65 @@ if [ "$1" = "--mount-bundles" ]; then
     exit 0
 fi
 
-# No NVIDIA GPU (or driver) present: nothing to do, keep booting.
-if ! modprobe nvidia 2>/dev/null; then
+# Pre-Turing GPUs (Maxwell, Pascal, Volta, e.g. the Tesla P4) have no GSP and
+# aren't supported by the open kernel modules. When the open module finds no
+# GPU, use the proprietary modules (nvidia-proprietary-modules-aarch64).
+PROPRIETARY=/usr/lib/nvidia-proprietary
+
+has_gpu() {
+    for g in /proc/driver/nvidia/gpus/*; do
+        [ -e "$g" ] && return 0
+    done
+    return 1
+}
+
+# Loading the proprietary modules may hang or crash the kernel (experimental
+# on the Pi 5). Never let that block the boot:
+# * a marker on the data partition records an attempt in progress; if it is
+#   still there at the next boot, the previous attempt crashed or hung, so skip
+# * the load runs in the background and the boot continues after a timeout,
+#   so Erlang, the network and SSH still come up to debug it (dmesg)
+ATTEMPT_MARKER=/root/nvidia/.proprietary-attempt
+LOAD_TIMEOUT=20
+
+load_proprietary() {
+    [ -f "$PROPRIETARY/nvidia.ko" ] || return 1
+
+    if [ -f "$ATTEMPT_MARKER" ]; then
+        log "previous proprietary module load didn't finish, skipping it (rm $ATTEMPT_MARKER to retry)"
+        return 1
+    fi
+    if [ -d /root/nvidia ]; then
+        echo "$(date)" > "$ATTEMPT_MARKER"
+        sync
+    fi
+
+    rmmod nvidia_drm nvidia_modeset nvidia_uvm nvidia 2>/dev/null
+    log "loading the proprietary kernel modules (GPU not supported by the open ones)"
+    run_with_timeout "$LOAD_TIMEOUT" sh -c "insmod $PROPRIETARY/nvidia.ko && insmod $PROPRIETARY/nvidia-uvm.ko"
+    case $? in
+        0) log "proprietary kernel modules loaded" ;;
+        124)
+            log "proprietary module load still running after ${LOAD_TIMEOUT}s, continuing the boot without the GPU"
+            return 1
+            ;;
+        *)
+            log "proprietary module load failed"
+            rm -f "$ATTEMPT_MARKER"
+            return 1
+            ;;
+    esac
+    # The marker stays until the GPU initialized (persistence mode below)
+    USING_PROPRIETARY=1
+}
+
+if modprobe nvidia 2>/dev/null && has_gpu; then
+    modprobe nvidia_uvm 2>/dev/null
+elif ! load_proprietary || ! has_gpu; then
+    # No NVIDIA GPU (or driver) present: nothing to do, keep booting.
     mount_bundles
     exit 0
 fi
-modprobe nvidia_uvm 2>/dev/null
 
 while read -r major name; do
     case "$name" in
@@ -97,7 +168,30 @@ fi
 # open (each nvidia-smi or CUDA/OpenCL program) boots the GPU's GSP firmware
 # and every close tears it down again; frequent cycles (e.g. polling
 # nvidia-smi) eventually made the GPU fall off the bus (Xid 79) on the Pi 5.
-nvidia-smi -pm 1 >/dev/null 2>&1
+# The first open initializes the GPU, which can hang with the proprietary
+# modules: don't let it block the boot either.
+run_with_timeout 30 sh -c "nvidia-smi -pm 1 >/dev/null 2>&1"
+case $? in
+    0)
+        [ -n "$USING_PROPRIETARY" ] && log "GPU initialized"
+        rm -f "$ATTEMPT_MARKER"
+        ;;
+    124)
+        # Possibly hung in the driver: keep the marker so the next boot skips
+        # the proprietary modules
+        log "GPU initialization (nvidia-smi -pm 1) timed out"
+        ;;
+    *)
+        # A clean failure (e.g. RmInitAdapter failed) is safe to retry
+        log "GPU initialization (nvidia-smi -pm 1) failed"
+        rm -f "$ATTEMPT_MARKER"
+        if [ -n "$USING_PROPRIETARY" ]; then
+            # Further opens of a GPU that failed to initialize can hang
+            # (every nvidia-smi call would), so don't leave the driver bound
+            rmmod nvidia_uvm nvidia 2>/dev/null && log "proprietary modules unloaded"
+        fi
+        ;;
+esac
 
 mount_bundles
 exit 0
