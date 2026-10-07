@@ -69,18 +69,12 @@ jobs:
           otp-version: ${{ env.ERLANG_VERSION }}
           elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      - name: Install Hex + Rebar + nerves_bootstrap
-        run: |
-          mix local.hex --force
-          mix local.rebar --force
-          mix archive.install --force hex nerves_bootstrap "${NERVES_BOOTSTRAP_VERSION}"
-
       - name: Compute the artifact name
         id: name
+        # Not `mix nerves.artifact.details`: it builds the system first if it
+        # isn't built yet. This script computes the same name in a second.
         run: |
-          mix deps.get
-          name=$(mix nerves.artifact.details | sed -n 's/^Download File Name: *//p')
-          [ -n "$name" ] || { echo "Could not compute the artifact name" >&2; exit 1; }
+          name=$(elixir scripts/artifact_name.exs)
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "Artifact: $name"
 
