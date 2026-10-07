@@ -157,14 +157,101 @@ learning with [EXLA](https://hex.pm/packages/exla) and
 
 Versions are set in [`nvidia-versions`](nvidia-versions).
 
-At boot, `/usr/sbin/nvidia-init` (erlinit `--pre-run-exec`) loads the
-modules, creates `/dev/nvidia*`, enables persistence mode and mounts each
-bundle listed in `/etc/nvidia-bundles` from
-`/root/nvidia/<id>-aarch64.squashfs` on `/opt/nvidia/<component>`.
-`LD_LIBRARY_PATH` points at the bundles' `lib` directories and
-`/usr/local/cuda` links to `/opt/nvidia/cuda`. Without the bundles the GPU,
-`nvidia-smi` and OpenCL still work; only CUDA applications fail. Messages go
-to the kernel log (`dmesg | grep nvidia-init`).
+### How it works
+
+Getting an NVIDIA GPU to run on a Raspberry Pi 5 under Nerves takes changes
+at every layer, from the PCIe slot up to the CUDA libraries. In boot order:
+
+**1. PCIe link** ([`config.txt`](config.txt)). The GPU sits on the Pi 5's
+external PCIe x1 slot (via an adapter/riser). `dtparam=pciex1_gen=3` runs the
+link at Gen 3 (8 GT/s, ~7.9 Gb/s) instead of the default Gen 2. Raspberry Pi
+doesn't certify Gen 3; remove the line if the link is unstable with your
+adapter. An idle GPU lowers its link speed to save power, so `nvidia-smi` may
+report Gen 1 until there is work; the negotiated speed is in
+`dmesg | grep "link up"`.
+
+**2. Kernel modules** (package `nvidia-open-gpu-modules-aarch64`). Recent
+GPUs (e.g. Blackwell, the RTX 50 series) require NVIDIA's open-source kernel
+modules, which are built from source for this kernel. This system builds a
+fork,
+[mariobalanica/open-gpu-kernel-modules](https://github.com/mariobalanica/open-gpu-kernel-modules)
+(`non-coherent-arm-fixes` branch), with fixes for Arm platforms whose PCIe
+DMA isn't cache-coherent, like the Pi 5. They are built against this
+system's kernel (Raspberry Pi 6.12 kernel, 16K pages, `PREEMPT_RT`) with
+`IGNORE_PREEMPT_RT_PRESENCE=1`, since the driver otherwise refuses real-time
+kernels. This gives the `nvidia`, `nvidia_uvm`, `nvidia_modeset` and
+`nvidia_drm` modules.
+
+**3. GPU firmware and driver userspace** (package `nvidia-driver-aarch64`).
+Modern NVIDIA GPUs run part of the driver on the GPU itself (GSP). The GSP
+firmware (`/lib/firmware/nvidia/<version>/gsp_*.bin`) and the userspace
+driver (`libcuda`, `libnvidia-ml`, `nvidia-smi`, OpenCL) come from NVIDIA's
+official aarch64 `.run` installer. They must be the exact version of the
+kernel modules (580.95.05), which is why they live in the system image and
+not in the bundles. The installer is unpacked at build time, which needs a
+host `zstd` (its bundled fallback is an aarch64 binary that can't run on the
+build machine), so the package depends on Buildroot's `host-zstd`. Libraries
+are installed in `/usr/lib/nvidia-driver-aarch64/` with symlinks in
+`/usr/lib` under the names programs load them by (`libcuda.so.1`,
+`libnvidia-ptxjitcompiler.so.1`, ...).
+
+**4. Boot-time setup** ([`/usr/sbin/nvidia-init`](rootfs_overlay/usr/sbin/nvidia-init),
+run by erlinit's `--pre-run-exec` before the Erlang VM starts). Nerves has no
+udev and no `nvidia-modprobe`, so this script does what a desktop distribution
+does automatically:
+
+* loads `nvidia` and `nvidia_uvm`;
+* creates `/dev/nvidiactl`, `/dev/nvidia<N>` and `/dev/nvidia-uvm*` from the
+  device numbers in `/proc/devices` (otherwise they only appear once
+  `nvidia-smi` runs, and CUDA programs started at boot can't find the GPU);
+* enables **persistence mode** (`nvidia-smi -pm 1`). Without it every program
+  that opens the GPU boots its GSP firmware and every exit shuts it down;
+  repeated cycles (e.g. polling `nvidia-smi`) ended with the GPU falling off
+  the bus (Xid 79) after ~90 cycles on the Pi 5;
+* mounts the NVIDIA bundles (step 6).
+
+It logs to the kernel log: `dmesg | grep nvidia-init`.
+
+**5. OpenCL.** The Khronos ICD loader (`libOpenCL.so.1`) finds NVIDIA's
+implementation through `/etc/OpenCL/vendors/nvidia.icd`
+(`libnvidia-opencl.so.1`). NVIDIA's OpenCL compiles kernels at runtime and
+loads `libnvidia-ptxjitcompiler`, `libnvidia-nvvm` and `libnvidia-gpucomp`
+by name, so these are kept (with their symlinks) by
+`post-build-nvidia-cleanup.sh`. The driver package, Buildroot's `libopencl`
+provider, depends on the ICD loader so OpenCL users like `clinfo` build
+against it.
+
+**6. CUDA, cuDNN and NCCL** (package `nvidia-cuda-bundles`, see below). These
+~4 GB of libraries are not in the image. `nvidia-init` loop-mounts
+`/root/nvidia/<id>-aarch64.squashfs` read-only on `/opt/nvidia/<component>`
+for each line of `/etc/nvidia-bundles`; erlinit sets
+`LD_LIBRARY_PATH=/opt/nvidia/cuda/lib:/opt/nvidia/cudnn/lib:/opt/nvidia/nccl/lib`
+for the Erlang VM and everything it starts, and `/usr/local/cuda` links to
+`/opt/nvidia/cuda` (where XLA finds `nvvm/libdevice`). The kernel has zstd
+squashfs support for them. Without the bundles the GPU, `nvidia-smi` and
+OpenCL still work; only CUDA programs fail.
+
+**Other changes.** The root filesystem partitions are 4.7 GiB
+([`fwup_include/fwup-common.conf`](fwup_include/fwup-common.conf)) to leave
+room for the driver, and `pciutils` (`lspci`) and `clinfo` are included for
+debugging.
+
+**Checking it on a device:**
+
+```elixir
+cmd("dmesg | grep -E 'nvidia-init|NVRM|link up'")
+cmd("ls -l /dev/nvidia*")
+cmd("lspci -nn")
+cmd("nvidia-smi")
+cmd("clinfo -l")
+cmd("grep /opt/nvidia /proc/mounts")
+```
+
+These kernel messages are expected and harmless: `NVRM: Chipset not
+recognized` / `not been qualified on this platform` (the Pi isn't an NVIDIA
+qualified platform), `kbifInitLtr_GB202: LTR is disabled in the hierarchy`,
+and `BAR 5 [io ...]: can't assign; no space` (the Pi has no PCIe I/O space;
+the GPU doesn't need it).
 
 ### Installing the NVIDIA bundles
 
