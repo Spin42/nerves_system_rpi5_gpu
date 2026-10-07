@@ -12,6 +12,36 @@ follows:
    releases, and Linux kernel updates. They're also made to fix bugs and add
    features to the build infrastructure.
 
+## v0.8.1
+
+* Changes
+  * Load the NVIDIA modules and create `/dev/nvidia*` at boot (`nvidia-init`
+    via erlinit `--pre-run-exec`). Previously the device nodes only appeared
+    after running `nvidia-smi`, so CUDA apps started at boot couldn't see the
+    GPU.
+  * Enable GPU persistence mode at boot. Repeatedly initializing and tearing
+    down the GPU (each `nvidia-smi` call without it) led to Xid 79 "GPU has
+    fallen off the bus" after ~90 cycles.
+  * Run the PCIe x1 slot at Gen 3 (`dtparam=pciex1_gen=3`) for roughly twice
+    the host<->GPU bandwidth.
+  * Add `pciutils` (`lspci`, `setpci`).
+  * Enable NVIDIA OpenCL: keep `libnvidia-opencl` and the libraries it loads
+    at runtime (`libnvidia-ptxjitcompiler`, `libnvidia-nvvm`,
+    `libnvidia-gpucomp`) plus their SONAME symlinks, and add `clinfo`.
+  * Only use the Dropbox artifact site for the release it actually hosts.
+    Dropbox serves the same file for any requested name, so local changes
+    used to silently pick up the old 0.8.0 system instead of building.
+  * Make the NVIDIA driver (the libopencl provider) depend on the OpenCL ICD
+    loader so OpenCL users like `clinfo` find `libOpenCL` and the CL headers.
+  * Fix extracting the NVIDIA driver on build hosts without `zstd` (the
+    installer's bundled fallback is an aarch64 binary): depend on `host-zstd`.
+  * Allow building in the Nerves Docker image with
+    `NERVES_BUILD_RUNNER=docker` (needed on Ubuntu 26.04 hosts). The image
+    is derived from the Nerves one with the build user remapped to the host
+    uid/gid (`support/docker/Dockerfile`).
+  * Include `package/`, `Config.in`, `external.mk`, `busybox.fragment` and
+    `post-build-nvidia-cleanup.sh` in the artifact checksum.
+
 ## v0.8.0
 
 This is a major Buildroot and Linux update. It should be seamless for most

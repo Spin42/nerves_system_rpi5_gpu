@@ -11,7 +11,8 @@ path = [
  "REUSE.toml",
  "mix.exs",
  "mix.lock",
- "VERSION"
+ "VERSION",
+ "support/docker/Dockerfile"
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "None"
@@ -71,7 +72,8 @@ path = [
  "config.txt",
  "rootfs_overlay/etc/boardid.config",
  "rootfs_overlay/etc/erlinit.config",
- "rootfs_overlay/etc/fw_env.config"
+ "rootfs_overlay/etc/fw_env.config",
+ "rootfs_overlay/usr/sbin/nvidia-init"
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "None"

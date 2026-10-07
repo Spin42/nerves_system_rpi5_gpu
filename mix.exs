@@ -44,10 +44,9 @@ defmodule NervesSystemRpi5Gpu.MixProject do
   defp nerves_package do
     [
       type: :system,
-      artifact_sites: [
-        {:github_releases, "#{@github_organization}/#{@app}"},
-        {:prefix, "https://www.dropbox.com/scl/fi/wqekrb8lbkyaevbjo29hq", query_params: %{"rlkey" => "0oxfpz9ug71vrm8exn7x1docn", "e" => "1", "st" => "xe1sgi2n", "dl" => "1"}}
-      ],
+      artifact_sites: [{:github_releases, "#{@github_organization}/#{@app}"}] ++ dropbox_site(),
+      build_runner: build_runner(),
+      build_runner_config: build_runner_config(),
       build_runner_opts: build_runner_opts(),
       platform: Nerves.System.BR,
       platform_config: [
@@ -66,6 +65,23 @@ defmodule NervesSystemRpi5Gpu.MixProject do
       ],
       checksum: package_files()
     ]
+  end
+
+  # Artifacts too big for GitHub releases are shared from Dropbox. A Dropbox
+  # shared link serves the same file whatever name is requested, so only offer
+  # it for the exact release it holds. Otherwise any local change would
+  # silently "download" the old system instead of building it.
+  @dropbox_artifacts %{
+    "0.8.0" =>
+      {"https://www.dropbox.com/scl/fi/wqekrb8lbkyaevbjo29hq",
+       %{"rlkey" => "0oxfpz9ug71vrm8exn7x1docn", "e" => "1", "st" => "xe1sgi2n", "dl" => "1"}}
+  }
+
+  defp dropbox_site do
+    case @dropbox_artifacts do
+      %{@version => {url, params}} -> [{:prefix, url, query_params: params}]
+      _ -> []
+    end
   end
 
   defp deps do
@@ -108,7 +124,12 @@ defmodule NervesSystemRpi5Gpu.MixProject do
   defp package_files do
     [
       "fwup_include",
+      "package",
       "rootfs_overlay",
+      "Config.in",
+      "external.mk",
+      "busybox.fragment",
+      "post-build-nvidia-cleanup.sh",
       "CHANGELOG.md",
       "cmdline.txt",
       "config.txt",
@@ -126,6 +147,34 @@ defmodule NervesSystemRpi5Gpu.MixProject do
       "REUSE.toml",
       "VERSION"
     ]
+  end
+
+  # Set NERVES_BUILD_RUNNER=docker to build inside the Nerves Docker image
+  # (Ubuntu based). Needed on hosts whose glibc/gcc are newer than Buildroot's
+  # host packages support (e.g. Ubuntu 26.04: glibc 2.43, gcc 15).
+  defp build_runner() do
+    case System.get_env("NERVES_BUILD_RUNNER") do
+      "docker" -> Nerves.Artifact.BuildRunners.Docker
+      _ -> nil
+    end
+  end
+
+  # The upstream image builds as uid 1005, which can't write to the bind-mounted
+  # deps and download cache. Use an image with the host user's uid/gid instead
+  # (support/docker/Dockerfile). If the tag is missing, Nerves offers to build
+  # it, but without build args (uid/gid default to 1000).
+  defp build_runner_config() do
+    if build_runner() == Nerves.Artifact.BuildRunners.Docker do
+      {uid, 0} = System.cmd("id", ["-u"])
+
+      [
+        docker:
+          {Path.join(__DIR__, "support/docker/Dockerfile"),
+           "nerves_system_br_uid#{String.trim(uid)}:1.33.0"}
+      ]
+    else
+      []
+    end
   end
 
   defp build_runner_opts() do
