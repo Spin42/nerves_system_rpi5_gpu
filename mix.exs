@@ -63,7 +63,7 @@ defmodule NervesSystemRpi5Gpu.MixProject do
         {"TARGET_GCC_FLAGS",
          "-mabi=lp64 -Wl,-z,max-page-size=4096 -Wl,-z,common-page-size=4096 -fstack-protector-strong -mcpu=cortex-a76 -fPIE -pie -Wl,-z,now -Wl,-z,relro"}
       ],
-      checksum: package_files()
+      checksum: checksum_files()
     ]
   end
 
@@ -139,6 +139,13 @@ defmodule NervesSystemRpi5Gpu.MixProject do
   # Set NERVES_BUILD_RUNNER=docker to build inside the Nerves Docker image
   # (Ubuntu based). Needed on hosts whose glibc/gcc are newer than Buildroot's
   # host packages support (e.g. Ubuntu 26.04: glibc 2.43, gcc 15).
+  # Files that don't affect the built system (docs, host-side tools, the
+  # Docker build image) are left out of the artifact checksum so changing them
+  # doesn't force a rebuild.
+  defp checksum_files() do
+    package_files() -- ["README.md", "CHANGELOG.md", "lib", "scripts", "support"]
+  end
+
   defp build_runner() do
     case System.get_env("NERVES_BUILD_RUNNER") do
       "docker" -> Nerves.Artifact.BuildRunners.Docker

@@ -37,6 +37,13 @@ is updated.
   * `mix nvidia.bundles.upload` uploads, verifies and mounts the bundles on a
     device.
   * Enable zstd squashfs support in the kernel (bundles are zstd compressed).
+  * NVSHMEM bundle (`nvidia-nvshmem`, 3.3.24): XLA's CUDA build links it.
+  * Keep `libnvrtc-builtins` (NVRTC loads it at runtime) in the CUDA bundle.
+  * `build-nvidia-bundles.sh --with-devtools` adds `ptxas` and `nvlink` to
+    the CUDA bundle for EXLA. Internal use only (CUDA EULA); such bundles
+    must not be distributed.
+  * Leave docs and host tooling (`README.md`, `CHANGELOG.md`, `lib/`,
+    `scripts/`, `support/`) out of the artifact checksum.
   * The system artifact (~530 MB) fits GitHub releases again: the Dropbox
     artifact site is removed.
   * The driver userspace (libcuda, NVML, nvidia-smi, OpenCL) stays in the

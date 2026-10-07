@@ -154,6 +154,7 @@ learning with [EXLA](https://hex.pm/packages/exla) and
 | CUDA toolkit runtime libraries (cuBLAS, cuFFT, cuSPARSE, cuSOLVER, NPP, NVRTC, nvJitLink, libnvvm/libdevice) | 12.9.0 | `nvidia-cuda-12.9.0` bundle |
 | cuDNN | 9.18.1.3 | `nvidia-cudnn-9.18.1.3` bundle |
 | NCCL | 2.29.2 | `nvidia-nccl-2.29.2` bundle |
+| NVSHMEM (needed by XLA/EXLA's CUDA build) | 3.3.24 | `nvidia-nvshmem-3.3.24` bundle |
 
 Versions are set in [`nvidia-versions`](nvidia-versions).
 
@@ -225,7 +226,7 @@ against it.
 ~4 GB of libraries are not in the image. `nvidia-init` loop-mounts
 `/root/nvidia/<id>-aarch64.squashfs` read-only on `/opt/nvidia/<component>`
 for each line of `/etc/nvidia-bundles`; erlinit sets
-`LD_LIBRARY_PATH=/opt/nvidia/cuda/lib:/opt/nvidia/cudnn/lib:/opt/nvidia/nccl/lib`
+`LD_LIBRARY_PATH=/opt/nvidia/cuda/lib:/opt/nvidia/cudnn/lib:/opt/nvidia/nccl/lib:/opt/nvidia/nvshmem/lib`
 for the Erlang VM and everything it starts, and `/usr/local/cuda` links to
 `/opt/nvidia/cuda` (where XLA finds `nvvm/libdevice`). The kernel has zstd
 squashfs support for them. Without the bundles the GPU, `nvidia-smi` and
@@ -262,6 +263,16 @@ minutes; needs `mksquashfs` with zstd support):
 scripts/build-nvidia-bundles.sh      # writes ~/.nerves/dl/nvidia-bundles/
 ```
 
+To use **EXLA (Nx on the GPU)**, build with `--with-devtools`: XLA's CUDA
+build compiles kernels with `ptxas`/`nvlink`, which this adds to the CUDA
+bundle (`/usr/local/cuda/bin`). These are CUDA developer tools that NVIDIA
+only licenses for internal use: fine on your own devices, but never publish
+or distribute a bundle built this way.
+
+```sh
+scripts/build-nvidia-bundles.sh --with-devtools
+```
+
 Then, from your firmware project, upload them to a device. This verifies the
 checksums, removes old versions and mounts them without a reboot:
 
@@ -272,9 +283,9 @@ mix nvidia.bundles.upload nerves.local
 Bundles live on the application data partition, so they survive firmware
 updates; reinstall them after a full reflash that erases `/root`.
 
-**Licensing:** the bundles only contain files NVIDIA allows to be
-redistributed (CUDA EULA Attachment A, cuDNN runtime libraries; NCCL is
-BSD-3-Clause). The CUDA and cuDNN licenses only permit redistributing them as
+**Licensing:** without `--with-devtools`, the bundles only contain files
+NVIDIA allows to be redistributed (CUDA EULA Attachment A, cuDNN and NVSHMEM
+runtime libraries; NCCL is BSD-3-Clause). The CUDA and cuDNN licenses only permit redistributing them as
 part of your application, not as a stand-alone product, so this project
 doesn't publish the bundles: build them with the script, which downloads
 from NVIDIA, and install them on your devices.

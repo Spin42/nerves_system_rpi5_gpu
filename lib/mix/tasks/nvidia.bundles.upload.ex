@@ -1,8 +1,8 @@
 defmodule Mix.Tasks.Nvidia.Bundles.Upload do
-  @shortdoc "Upload the NVIDIA CUDA/cuDNN/NCCL bundles to a device"
+  @shortdoc "Upload the NVIDIA CUDA/cuDNN/NCCL/NVSHMEM bundles to a device"
 
   @moduledoc """
-  Uploads the CUDA toolkit, cuDNN and NCCL bundles expected by this system to
+  Uploads the CUDA toolkit, cuDNN, NCCL and NVSHMEM bundles expected by this system to
   a device's data partition (`/root/nvidia/`), verifies them and mounts them.
 
       mix nvidia.bundles.upload [host] [--dir DIR] [--keep-old]
@@ -54,6 +54,11 @@ defmodule Mix.Tasks.Nvidia.Bundles.Upload do
       cond do
         mounted_from == nil ->
           Mix.shell().error("#{component}: not mounted, check `dmesg` on the device")
+
+        String.ends_with?(mounted_from, " (deleted)") ->
+          Mix.shell().info(
+            "#{component}: #{expected.file} was replaced while mounted, reboot to use the new one"
+          )
 
         Path.basename(mounted_from) == expected.file ->
           Mix.shell().info("#{component}: mounted on /opt/nvidia/#{component}")
@@ -198,7 +203,8 @@ defmodule Mix.Tasks.Nvidia.Bundles.Upload do
     [
       {"cuda", "nvidia-cuda-" <> versions["NVIDIA_STACK_CUDA_VERSION"]},
       {"cudnn", "nvidia-cudnn-" <> versions["NVIDIA_STACK_CUDNN_VERSION"]},
-      {"nccl", "nvidia-nccl-" <> versions["NVIDIA_STACK_NCCL_VERSION"]}
+      {"nccl", "nvidia-nccl-" <> versions["NVIDIA_STACK_NCCL_VERSION"]},
+      {"nvshmem", "nvidia-nvshmem-" <> versions["NVIDIA_STACK_NVSHMEM_VERSION"]}
     ]
     |> Enum.map(fn {component, id} ->
       file = id <> "-aarch64.squashfs"

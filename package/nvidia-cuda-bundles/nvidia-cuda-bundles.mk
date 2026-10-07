@@ -17,8 +17,9 @@ define NVIDIA_CUDA_BUNDLES_INSTALL_TARGET_CMDS
 		'cuda nvidia-cuda-$(NVIDIA_STACK_CUDA_VERSION)' \
 		'cudnn nvidia-cudnn-$(NVIDIA_STACK_CUDNN_VERSION)' \
 		'nccl nvidia-nccl-$(NVIDIA_STACK_NCCL_VERSION)' \
+		'nvshmem nvidia-nvshmem-$(NVIDIA_STACK_NVSHMEM_VERSION)' \
 		> $(TARGET_DIR)/etc/nvidia-bundles
-	mkdir -p $(TARGET_DIR)/opt/nvidia/cuda $(TARGET_DIR)/opt/nvidia/cudnn $(TARGET_DIR)/opt/nvidia/nccl
+	mkdir -p $(TARGET_DIR)/opt/nvidia/cuda $(TARGET_DIR)/opt/nvidia/cudnn $(TARGET_DIR)/opt/nvidia/nccl $(TARGET_DIR)/opt/nvidia/nvshmem
 	mkdir -p $(TARGET_DIR)/usr/local
 	rm -rf $(TARGET_DIR)/usr/local/cuda
 	ln -sfn /opt/nvidia/cuda $(TARGET_DIR)/usr/local/cuda

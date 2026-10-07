@@ -1,5 +1,5 @@
 config BR2_PACKAGE_NVIDIA_CUDA_BUNDLES
-	bool "NVIDIA CUDA/cuDNN/NCCL from external bundles"
+	bool "NVIDIA CUDA/cuDNN/NCCL/NVSHMEM from external bundles"
 	depends on BR2_PACKAGE_NVIDIA_DRIVER_AARCH64
 	depends on !BR2_PACKAGE_NVIDIA_CUDA_TOOLKIT
 	depends on !BR2_PACKAGE_NVIDIA_CUDNN

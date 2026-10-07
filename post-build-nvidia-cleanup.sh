@@ -38,8 +38,9 @@ REQUIRED_LIBS=(
 	"libcudnn_engines_runtime_compiled.so*"
 	"libcudnn_heuristic.so*"
 	
-	# CUDA Compilation/Runtime Compilation
+	# CUDA Compilation/Runtime Compilation (NVRTC loads its builtins library)
 	"libnvrtc.so*"
+	"libnvrtc-builtins.so*"
 	"libnvJitLink.so*"
 	
 	# CUDA Math Libraries (core functionality)
@@ -96,7 +97,6 @@ UNUSED_PATTERNS=(
 	"libcufftw*"
 	"libnvfatbin*"
 	"libnvptxcompiler*"
-	"libnvrtc-builtins*"
 	
 	# NCCL plugin/debug libs (optional)
 	"libnccl-net*"
