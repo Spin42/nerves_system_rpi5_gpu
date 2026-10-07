@@ -12,6 +12,73 @@ follows:
    releases, and Linux kernel updates. They're also made to fix bugs and add
    features to the build infrastructure.
 
+## v0.9.0
+
+This is a breaking change: the CUDA toolkit, cuDNN and NCCL libraries are no
+longer part of the system image. They ship as separate squashfs bundles that
+are installed once on the device's data partition. The system artifact and the
+firmware shrink by several GB and only the bundles change when the CUDA stack
+is updated.
+
+* Changes
+  * New `nvidia-cuda-bundles` package (replaces enabling
+    `nvidia-cuda-toolkit`, `nvidia-cudnn` and `nvidia-nccl` in the image):
+    installs `/etc/nvidia-bundles` (the expected bundle ids), the
+    `/opt/nvidia/{cuda,cudnn,nccl}` mount points and `/usr/local/cuda`
+    (-> `/opt/nvidia/cuda`).
+  * `nvidia-init` loop-mounts `/root/nvidia/<id>-aarch64.squashfs` on
+    `/opt/nvidia/<component>` at boot (falls back to another version with a
+    warning, logs to the kernel log). `nvidia-init --mount-bundles` mounts
+    newly uploaded bundles without rebooting.
+  * erlinit sets `LD_LIBRARY_PATH` to the bundles' `lib` directories.
+  * `scripts/build-nvidia-bundles.sh` builds the bundles from NVIDIA's
+    redistributable archives (no Buildroot needed); versions come from
+    `nvidia-versions`, shared with the in-image packages.
+  * `mix nvidia.bundles.upload` uploads, verifies and mounts the bundles on a
+    device.
+  * Enable zstd squashfs support in the kernel (bundles are zstd compressed).
+  * NVSHMEM bundle (`nvidia-nvshmem`, 3.3.24): XLA's CUDA build links it.
+  * Keep `libnvrtc-builtins` (NVRTC loads it at runtime) in the CUDA bundle.
+  * `build-nvidia-bundles.sh --with-devtools` adds `ptxas` and `nvlink` to
+    the CUDA bundle for EXLA. Internal use only (CUDA EULA); such bundles
+    must not be distributed.
+  * Leave docs and host tooling (`README.md`, `CHANGELOG.md`, `lib/`,
+    `scripts/`, `support/`) out of the artifact checksum.
+  * The system artifact (~530 MB) fits GitHub releases again: the Dropbox
+    artifact site is removed.
+  * The driver userspace (libcuda, NVML, nvidia-smi, OpenCL) stays in the
+    system since it must match the kernel module version.
+
+## v0.8.1
+
+* Changes
+  * Load the NVIDIA modules and create `/dev/nvidia*` at boot (`nvidia-init`
+    via erlinit `--pre-run-exec`). Previously the device nodes only appeared
+    after running `nvidia-smi`, so CUDA apps started at boot couldn't see the
+    GPU.
+  * Enable GPU persistence mode at boot. Repeatedly initializing and tearing
+    down the GPU (each `nvidia-smi` call without it) led to Xid 79 "GPU has
+    fallen off the bus" after ~90 cycles.
+  * Run the PCIe x1 slot at Gen 3 (`dtparam=pciex1_gen=3`) for roughly twice
+    the host<->GPU bandwidth.
+  * Add `pciutils` (`lspci`, `setpci`).
+  * Enable NVIDIA OpenCL: keep `libnvidia-opencl` and the libraries it loads
+    at runtime (`libnvidia-ptxjitcompiler`, `libnvidia-nvvm`,
+    `libnvidia-gpucomp`) plus their SONAME symlinks, and add `clinfo`.
+  * Only use the Dropbox artifact site for the release it actually hosts.
+    Dropbox serves the same file for any requested name, so local changes
+    used to silently pick up the old 0.8.0 system instead of building.
+  * Make the NVIDIA driver (the libopencl provider) depend on the OpenCL ICD
+    loader so OpenCL users like `clinfo` find `libOpenCL` and the CL headers.
+  * Fix extracting the NVIDIA driver on build hosts without `zstd` (the
+    installer's bundled fallback is an aarch64 binary): depend on `host-zstd`.
+  * Allow building in the Nerves Docker image with
+    `NERVES_BUILD_RUNNER=docker` (needed on Ubuntu 26.04 hosts). The image
+    is derived from the Nerves one with the build user remapped to the host
+    uid/gid (`support/docker/Dockerfile`).
+  * Include `package/`, `Config.in`, `external.mk`, `busybox.fragment` and
+    `post-build-nvidia-cleanup.sh` in the artifact checksum.
+
 ## v0.8.0
 
 This is a major Buildroot and Linux update. It should be seamless for most

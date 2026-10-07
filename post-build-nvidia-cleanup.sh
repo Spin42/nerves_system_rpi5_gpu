@@ -38,8 +38,9 @@ REQUIRED_LIBS=(
 	"libcudnn_engines_runtime_compiled.so*"
 	"libcudnn_heuristic.so*"
 	
-	# CUDA Compilation/Runtime Compilation
+	# CUDA Compilation/Runtime Compilation (NVRTC loads its builtins library)
 	"libnvrtc.so*"
+	"libnvrtc-builtins.so*"
 	"libnvJitLink.so*"
 	
 	# CUDA Math Libraries (core functionality)
@@ -63,6 +64,14 @@ REQUIRED_LIBS=(
 	# NVIDIA SMI
 	"libnvidia-ml*"
 
+	# OpenCL (ICD loader, NVIDIA ICD and the compilers it dlopens). The PTX
+	# JIT compiler is also used by CUDA for GPUs newer than the embedded SASS.
+	"libOpenCL*"
+	"libnvidia-opencl*"
+	"libnvidia-ptxjitcompiler*"
+	"libnvidia-nvvm*"
+	"libnvidia-gpucomp*"
+
 )
 
 # Patterns to remove (unused NVIDIA libraries)
@@ -84,15 +93,10 @@ UNUSED_PATTERNS=(
 	"libcusolver_static*"
 	"libcublas_static*"
 	
-	# OpenCL (not needed for exla/evision)
-	"libnvidia-opencl*"
-	"libOpenCL*"
-	
 	# Unused CUDA utilities
 	"libcufftw*"
 	"libnvfatbin*"
 	"libnvptxcompiler*"
-	"libnvrtc-builtins*"
 	
 	# NCCL plugin/debug libs (optional)
 	"libnccl-net*"
@@ -101,7 +105,6 @@ UNUSED_PATTERNS=(
 	# Unused NVIDIA libraries
 	"libnvidia-nvcuvid*"
 	"libnvidia-encode*"
-	"libnvidia-ptxjitcompiler*"
 )
 
 cleanup_directory() {

@@ -44,10 +44,9 @@ defmodule NervesSystemRpi5Gpu.MixProject do
   defp nerves_package do
     [
       type: :system,
-      artifact_sites: [
-        {:github_releases, "#{@github_organization}/#{@app}"},
-        {:prefix, "https://www.dropbox.com/scl/fi/wqekrb8lbkyaevbjo29hq", query_params: %{"rlkey" => "0oxfpz9ug71vrm8exn7x1docn", "e" => "1", "st" => "xe1sgi2n", "dl" => "1"}}
-      ],
+      artifact_sites: [{:github_releases, "#{@github_organization}/#{@app}"}],
+      build_runner: build_runner(),
+      build_runner_config: build_runner_config(),
       build_runner_opts: build_runner_opts(),
       platform: Nerves.System.BR,
       platform_config: [
@@ -64,7 +63,7 @@ defmodule NervesSystemRpi5Gpu.MixProject do
         {"TARGET_GCC_FLAGS",
          "-mabi=lp64 -Wl,-z,max-page-size=4096 -Wl,-z,common-page-size=4096 -fstack-protector-strong -mcpu=cortex-a76 -fPIE -pie -Wl,-z,now -Wl,-z,relro"}
       ],
-      checksum: package_files()
+      checksum: checksum_files()
     ]
   end
 
@@ -108,7 +107,16 @@ defmodule NervesSystemRpi5Gpu.MixProject do
   defp package_files do
     [
       "fwup_include",
+      "lib",
+      "package",
+      "scripts",
+      "support",
       "rootfs_overlay",
+      "Config.in",
+      "external.mk",
+      "nvidia-versions",
+      "busybox.fragment",
+      "post-build-nvidia-cleanup.sh",
       "CHANGELOG.md",
       "cmdline.txt",
       "config.txt",
@@ -126,6 +134,41 @@ defmodule NervesSystemRpi5Gpu.MixProject do
       "REUSE.toml",
       "VERSION"
     ]
+  end
+
+  # Set NERVES_BUILD_RUNNER=docker to build inside the Nerves Docker image
+  # (Ubuntu based). Needed on hosts whose glibc/gcc are newer than Buildroot's
+  # host packages support (e.g. Ubuntu 26.04: glibc 2.43, gcc 15).
+  # Files that don't affect the built system (docs, host-side tools, the
+  # Docker build image) are left out of the artifact checksum so changing them
+  # doesn't force a rebuild.
+  defp checksum_files() do
+    package_files() -- ["README.md", "CHANGELOG.md", "lib", "scripts", "support"]
+  end
+
+  defp build_runner() do
+    case System.get_env("NERVES_BUILD_RUNNER") do
+      "docker" -> Nerves.Artifact.BuildRunners.Docker
+      _ -> nil
+    end
+  end
+
+  # The upstream image builds as uid 1005, which can't write to the bind-mounted
+  # deps and download cache. Use an image with the host user's uid/gid instead
+  # (support/docker/Dockerfile). If the tag is missing, Nerves offers to build
+  # it, but without build args (uid/gid default to 1000).
+  defp build_runner_config() do
+    if build_runner() == Nerves.Artifact.BuildRunners.Docker do
+      {uid, 0} = System.cmd("id", ["-u"])
+
+      [
+        docker:
+          {Path.join(__DIR__, "support/docker/Dockerfile"),
+           "nerves_system_br_uid#{String.trim(uid)}:1.33.0"}
+      ]
+    else
+      []
+    end
   end
 
   defp build_runner_opts() do

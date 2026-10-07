@@ -1,0 +1,217 @@
+# SPDX-FileCopyrightText: None
+# SPDX-License-Identifier: CC0-1.0
+name: system
+
+# Builds the Nerves system once per distinct content and publishes it.
+#
+# Nerves names the system artifact after a checksum of everything that
+# affects the build (nerves_system_rpi5_gpu-portable-<version>-<checksum>
+# .tar.gz). The `resolve` job computes that name in a few minutes and looks
+# for a release asset with it; the hours-long `build` only runs when none
+# exists. So a pull request builds the system once, and merging it to main
+# or tagging the release reuses that tarball instead of rebuilding.
+#
+# Built tarballs are stored on the `ci-artifacts` pre-release (GitHub
+# doesn't let main read caches created by pull requests, release assets are
+# visible to every run). Tagging vX.Y.Z (matching VERSION) attaches the
+# tarball to the vX.Y.Z release, where projects using this system download it.
+#
+# The NVIDIA CUDA/cuDNN/NCCL/NVSHMEM bundles are NOT built or published here:
+# NVIDIA's licenses don't allow distributing them on their own. Users build
+# them locally with scripts/build-nvidia-bundles.sh (see README.md).
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # OTP must match the major version on the target: nerves_system_br 1.33
+  # ships OTP 28.
+  ERLANG_VERSION: "28.4.1"
+  ELIXIR_VERSION: "1.19.5-otp-28"
+  NERVES_BOOTSTRAP_VERSION: "1.17.2"
+  FWUP_VERSION: "1.17.1"
+  CI_RELEASE: ci-artifacts
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  resolve:
+    runs-on: ubuntu-22.04
+    outputs:
+      name: ${{ steps.name.outputs.name }}
+      found_in: ${{ steps.lookup.outputs.found_in }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(cat VERSION)
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} doesn't match VERSION ${version}" >&2
+            exit 1
+          fi
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.ERLANG_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Compute the artifact name
+        id: name
+        # Not `mix nerves.artifact.details`: it builds the system first if it
+        # isn't built yet. This script computes the same name in a second.
+        run: |
+          name=$(elixir scripts/artifact_name.exs)
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "Artifact: $name"
+
+      - name: Look for an existing build
+        id: lookup
+        run: |
+          name='${{ steps.name.outputs.name }}'
+          found_in=$(gh api "repos/${GH_REPO}/releases?per_page=100" --paginate \
+            --jq ".[] | select(.assets[].name == \"${name}\") | .tag_name" | head -1)
+          echo "found_in=${found_in}" >> "$GITHUB_OUTPUT"
+          if [ -n "$found_in" ]; then
+            echo "Already built: ${name} is on release ${found_in}, skipping the build"
+          else
+            echo "Not built yet: ${name}"
+          fi
+
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.found_in == ''
+    runs-on: ubuntu-22.04
+    # A cold build takes a few hours on a 4-vCPU runner (jobs are capped at
+    # 6 h). ubuntu-22.04's GCC 11 builds Buildroot 2025.11's host packages
+    # (newer hosts, e.g. Ubuntu 26.04, need the Docker build runner).
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        # A full build needs 20+ GB (the Buildroot tree alone is ~16 GB)
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/boost /opt/hostedtoolcache/CodeQL /usr/local/.ghcup
+          sudo docker image prune --all --force > /dev/null || true
+          df -h /
+
+      - name: Install Buildroot host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git build-essential bc cmake cvs wget curl mercurial \
+            python3 python3-aiohttp python3-flake8 python3-ijson \
+            python3-nose2 python3-pexpect python3-pip python3-requests \
+            rsync subversion unzip gawk jq squashfs-tools libssl-dev \
+            automake autoconf libncurses5-dev libtool libelf-dev flex bison \
+            pkg-config cpio file
+
+      - name: Install fwup
+        run: |
+          wget -q "https://github.com/fwup-home/fwup/releases/download/v${FWUP_VERSION}/fwup_${FWUP_VERSION}_amd64.deb"
+          sudo apt-get install -y "./fwup_${FWUP_VERSION}_amd64.deb"
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.ERLANG_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+
+      - name: Install Hex + Rebar + nerves_bootstrap
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix archive.install --force hex nerves_bootstrap "${NERVES_BOOTSTRAP_VERSION}"
+
+      # Buildroot source downloads (~/.nerves/dl) and the cross-compiler
+      # (~/.nerves/artifacts) are cached between runs.
+      - name: Cache Buildroot source downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.nerves/dl
+          key: nerves-dl-${{ hashFiles('nerves_defconfig', 'mix.lock', 'nvidia-versions', 'package/**/*.mk') }}
+          restore-keys: |
+            nerves-dl-
+
+      - name: Cache Nerves toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.nerves/artifacts
+          key: nerves-toolchain-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            nerves-toolchain-
+
+      - name: Build the Nerves system (Buildroot)
+        run: |
+          mix deps.get
+          mix compile
+
+      - name: Create the portable tarball
+        id: tarball
+        run: |
+          mix nerves.artifact --path .
+          name='${{ needs.resolve.outputs.name }}'
+          if [ ! -f "$name" ]; then
+            echo "Expected ${name}, got:" >&2
+            ls -la ./*.tar.gz >&2 || true
+            exit 1
+          fi
+          echo "Built ${name} ($(du -h "$name" | cut -f1))"
+          df -h /
+
+      - name: Upload as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.resolve.outputs.name }}
+          path: ${{ needs.resolve.outputs.name }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Store on the ci-artifacts pre-release
+        # Pull requests from forks only get a read-only token
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          gh release view "$CI_RELEASE" > /dev/null 2>&1 ||
+            gh release create "$CI_RELEASE" --prerelease --title "CI artifacts" \
+              --notes "System builds made by CI, one per distinct content (named after the Nerves checksum). Used to avoid rebuilding; releases get theirs from here."
+          gh release upload "$CI_RELEASE" '${{ needs.resolve.outputs.name }}' --clobber
+
+  release:
+    needs: [resolve, build]
+    # Runs whether the build ran or was skipped because the tarball existed
+    if: >-
+      always() && startsWith(github.ref, 'refs/tags/v') &&
+      needs.resolve.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Attach the system tarball to the release
+        run: |
+          name='${{ needs.resolve.outputs.name }}'
+          source='${{ needs.resolve.outputs.found_in }}'
+          [ -n "$source" ] || source="$CI_RELEASE"
+          if [ "$source" = "$GITHUB_REF_NAME" ]; then
+            echo "${name} is already attached to ${GITHUB_REF_NAME}"
+            exit 0
+          fi
+          gh release download "$source" --pattern "$name"
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" "$name" --clobber
+          echo "Attached ${name} (from ${source}) to ${GITHUB_REF_NAME}"

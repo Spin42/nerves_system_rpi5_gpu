@@ -5,8 +5,8 @@
 ################################################################################
 # Uses pre-built cuDNN from NVIDIA for aarch64
 
-NVIDIA_CUDNN_VERSION = 9.18.1.3
-NVIDIA_CUDNN_CUDA_VERSION = 12
+NVIDIA_CUDNN_VERSION = $(NVIDIA_STACK_CUDNN_VERSION)
+NVIDIA_CUDNN_CUDA_VERSION = $(NVIDIA_STACK_CUDNN_CUDA_VERSION)
 NVIDIA_CUDNN_SOURCE = cudnn-linux-sbsa-$(NVIDIA_CUDNN_VERSION)_cuda$(NVIDIA_CUDNN_CUDA_VERSION)-archive.tar.xz
 NVIDIA_CUDNN_SITE = https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-sbsa
 NVIDIA_CUDNN_LICENSE = NVIDIA-cuDNN-EULA

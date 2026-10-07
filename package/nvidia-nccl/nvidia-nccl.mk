@@ -5,7 +5,7 @@
 ################################################################################
 # Uses pre-built NCCL from NVIDIA for aarch64
 
-NVIDIA_NCCL_VERSION = 2.29.2
+NVIDIA_NCCL_VERSION = $(NVIDIA_STACK_NCCL_VERSION)
 NVIDIA_NCCL_CUDA_VERSION = 12.9
 NVIDIA_NCCL_SOURCE = nccl-linux-sbsa-$(NVIDIA_NCCL_VERSION)-archive.tar.xz
 NVIDIA_NCCL_SITE = https://developer.download.nvidia.com/compute/nccl/redist/nccl/linux-sbsa

@@ -66,3 +66,8 @@ dtoverlay=ramoops
 # Enable the UART (/dev/ttyAMA0)
 enable_uart=1
 
+# Run the external PCIe x1 slot (used by the GPU) at Gen 3 (8 GT/s) instead of
+# the default Gen 2. Not officially certified by Raspberry Pi; comment out if
+# the link is unstable with your adapter/riser.
+dtparam=pciex1_gen=3
+
