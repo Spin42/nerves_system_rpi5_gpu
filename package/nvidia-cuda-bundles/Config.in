@@ -1,0 +1,18 @@
+config BR2_PACKAGE_NVIDIA_CUDA_BUNDLES
+	bool "NVIDIA CUDA/cuDNN/NCCL from external bundles"
+	depends on BR2_PACKAGE_NVIDIA_DRIVER_AARCH64
+	depends on !BR2_PACKAGE_NVIDIA_CUDA_TOOLKIT
+	depends on !BR2_PACKAGE_NVIDIA_CUDNN
+	depends on !BR2_PACKAGE_NVIDIA_NCCL
+	help
+	  Keep the CUDA toolkit, cuDNN and NCCL libraries out of the root
+	  filesystem. They are shipped as separate squashfs bundles (built by
+	  scripts/build-nvidia-bundles.sh), stored on the application data
+	  partition in /root/nvidia/ and loop-mounted at boot by nvidia-init
+	  on /opt/nvidia/<component>.
+
+	  This package installs the list of expected bundles
+	  (/etc/nvidia-bundles), the mount points and /usr/local/cuda.
+
+comment "nvidia-cuda-bundles is exclusive with the in-image CUDA/cuDNN/NCCL packages"
+	depends on BR2_PACKAGE_NVIDIA_CUDA_TOOLKIT || BR2_PACKAGE_NVIDIA_CUDNN || BR2_PACKAGE_NVIDIA_NCCL

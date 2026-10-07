@@ -1,0 +1,9 @@
+# NVIDIA CUDA stack versions: the single source of truth for the
+# nvidia-cuda-toolkit/cudnn/nccl packages, the nvidia-cuda-bundles package and
+# scripts/build-nvidia-bundles.sh. Plain KEY=value lines so this file is
+# valid both as a Makefile include and as a shell script.
+NVIDIA_STACK_CUDA_VERSION=12.9.0
+NVIDIA_STACK_CUDA_DRIVER_VERSION=575.51.03
+NVIDIA_STACK_CUDNN_VERSION=9.18.1.3
+NVIDIA_STACK_CUDNN_CUDA_VERSION=12
+NVIDIA_STACK_NCCL_VERSION=2.29.2

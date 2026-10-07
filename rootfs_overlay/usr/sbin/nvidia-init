@@ -13,8 +13,55 @@ mknod_once() {
     [ -e "$1" ] || mknod -m 666 "$1" c "$2" "$3"
 }
 
+log() {
+    echo "nvidia-init: $*" > /dev/kmsg 2>/dev/null || echo "nvidia-init: $*"
+}
+
+# Loop-mount the CUDA/cuDNN/NCCL bundles listed in /etc/nvidia-bundles
+# ("<component> <id>" lines) from /root/nvidia/<id>-aarch64.squashfs onto
+# /opt/nvidia/<component>. Another version of a component is used as a
+# fallback, with a warning. Safe to re-run (e.g. after uploading bundles).
+mount_bundles() {
+    [ -f /etc/nvidia-bundles ] || return 0
+
+    while read -r component id; do
+        [ -n "$component" ] || continue
+        target=/opt/nvidia/$component
+        grep -q " $target " /proc/mounts && continue
+
+        image=/root/nvidia/$id-aarch64.squashfs
+        if [ ! -f "$image" ]; then
+            fallback=""
+            for f in /root/nvidia/nvidia-$component-*-aarch64.squashfs; do
+                [ -f "$f" ] && fallback=$f
+            done
+            if [ -z "$fallback" ]; then
+                log "$component bundle missing (expected $image)"
+                continue
+            fi
+            log "WARNING: $image missing, using $fallback instead"
+            image=$fallback
+        fi
+
+        if mount -o loop,ro -t squashfs "$image" "$target"; then
+            log "mounted $image on $target"
+        else
+            log "failed to mount $image"
+        fi
+    done < /etc/nvidia-bundles
+}
+
+# Re-run after uploading bundles: only (re)try the mounts.
+if [ "$1" = "--mount-bundles" ]; then
+    mount_bundles
+    exit 0
+fi
+
 # No NVIDIA GPU (or driver) present: nothing to do, keep booting.
-modprobe nvidia 2>/dev/null || exit 0
+if ! modprobe nvidia 2>/dev/null; then
+    mount_bundles
+    exit 0
+fi
 modprobe nvidia_uvm 2>/dev/null
 
 while read -r major name; do
@@ -24,7 +71,10 @@ while read -r major name; do
     esac
 done < /proc/devices
 
-[ -n "$nv_major" ] || exit 0
+if [ -z "$nv_major" ]; then
+    mount_bundles
+    exit 0
+fi
 
 mknod_once /dev/nvidiactl "$nv_major" 255
 
@@ -49,4 +99,5 @@ fi
 # nvidia-smi) eventually made the GPU fall off the bus (Xid 79) on the Pi 5.
 nvidia-smi -pm 1 >/dev/null 2>&1
 
+mount_bundles
 exit 0

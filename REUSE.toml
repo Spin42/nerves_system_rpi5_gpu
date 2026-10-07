@@ -12,7 +12,9 @@ path = [
  "mix.exs",
  "mix.lock",
  "VERSION",
- "support/docker/Dockerfile"
+ "support/docker/Dockerfile",
+ "lib/**",
+ "scripts/**"
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "None"
@@ -34,6 +36,7 @@ path = [
  "Config.in",
  "package/**",
  "external.mk",
+ "nvidia-versions",
  "post-build.sh",
  "post-build-nvidia-cleanup.sh",
  "post-createfs.sh"

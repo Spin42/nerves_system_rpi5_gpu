@@ -135,41 +135,78 @@ you will be responsible for setting this yourself.
 
 ## NVIDIA GPU Support
 
-This system includes packages for NVIDIA GPU acceleration, primarily targeting
-machine learning workloads with [EXLA](https://hex.pm/packages/exla) and
-[Evision](https://hex.pm/packages/evision).
+This system supports NVIDIA GPUs on the PCIe slot, primarily for machine
+learning with [EXLA](https://hex.pm/packages/exla) and
+[Evision](https://hex.pm/packages/evision). The stack is split in two:
 
-### NVIDIA Packages
+* **In the system image:** what must match the kernel: the open GPU kernel
+  modules, GSP firmware and the driver userspace (`libcuda`, NVML,
+  `nvidia-smi`, the OpenCL ICD and its compilers).
+* **NVIDIA bundles:** the CUDA toolkit libraries, cuDNN and NCCL (~4 GB
+  uncompressed). They are squashfs images installed once on the data
+  partition and mounted at boot, so they are not part of the system
+  artifact or firmware updates.
 
-| Package | Version | Description |
-| ------- | ------- | ----------- |
-| `nvidia-driver-aarch64` | 580.95.05 | NVIDIA userspace driver libraries (`libcuda.so`, `libnvidia-ml.so`, `nvidia-smi`) |
-| `nvidia-open-gpu-modules-aarch64` | [mariobalanica/open-gpu-kernel-modules](https://github.com/mariobalanica/open-gpu-kernel-modules) @ `non-coherent-arm-fixes` | Open-source NVIDIA kernel modules for aarch64 |
-| `nvidia-cuda-toolkit` | 12.9.0 | CUDA runtime libraries (cuBLAS, cuFFT, cuSPARSE, cuSOLVER, NPP, nvRTC) |
-| `nvidia-cudnn` | 9.18.1.3 | CUDA Deep Neural Network library for accelerated neural network operations |
-| `nvidia-nccl` | 2.29.2 | NVIDIA Collective Communication Library for multi-GPU communication |
+| Component | Version | Where |
+| --------- | ------- | ----- |
+| `nvidia-open-gpu-modules-aarch64` | [mariobalanica/open-gpu-kernel-modules](https://github.com/mariobalanica/open-gpu-kernel-modules) @ `non-coherent-arm-fixes` | system |
+| `nvidia-driver-aarch64` | 580.95.05 | system |
+| CUDA toolkit runtime libraries (cuBLAS, cuFFT, cuSPARSE, cuSOLVER, NPP, NVRTC, nvJitLink, libnvvm/libdevice) | 12.9.0 | `nvidia-cuda-12.9.0` bundle |
+| cuDNN | 9.18.1.3 | `nvidia-cudnn-9.18.1.3` bundle |
+| NCCL | 2.29.2 | `nvidia-nccl-2.29.2` bundle |
 
-### NVIDIA Library Cleanup Script
+Versions are set in [`nvidia-versions`](nvidia-versions).
 
-The full NVIDIA stack installs many libraries that may not be needed for typical
-EXLA/Evision workloads. To reduce image size, the `post-build-nvidia-cleanup.sh`
-script removes unused libraries while preserving those required at runtime.
+At boot, `/usr/sbin/nvidia-init` (erlinit `--pre-run-exec`) loads the
+modules, creates `/dev/nvidia*`, enables persistence mode and mounts each
+bundle listed in `/etc/nvidia-bundles` from
+`/root/nvidia/<id>-aarch64.squashfs` on `/opt/nvidia/<component>`.
+`LD_LIBRARY_PATH` points at the bundles' `lib` directories and
+`/usr/local/cuda` links to `/opt/nvidia/cuda`. Without the bundles the GPU,
+`nvidia-smi` and OpenCL still work; only CUDA applications fail. Messages go
+to the kernel log (`dmesg | grep nvidia-init`).
 
-**Required libraries kept:**
-- CUDA core: `libcuda.so`, `libcudart.so`, `libnvrtc.so`, `libnvJitLink.so`
-- Math libraries: `libcublas.so`, `libcublasLt.so`, `libcufft.so`, `libcusolver.so`, `libcusparse.so`
-- cuDNN: `libcudnn*.so` (core, ops, graph, cnn, adv, engines, heuristic)
-- NCCL: `libnccl.so`
-- NPP (image processing): `libnppc.so`, `libnppig.so`, `libnppial.so`, `libnppicc.so`, `libnppidei.so`, `libnppist.so`, `libnppif.so`, `libnppim.so`, `libnppitc.so`
+### Installing the NVIDIA bundles
 
-**Libraries removed:**
-- Deprecated/unused: `libcuinj`, `libcudadevrt`, `libcupti`, `libnvvm`
-- Static libraries: `libcudart_static`, `libcusolver_static`, `libcublas_static`
-- OpenCL: `libnvidia-opencl`, `libOpenCL`
-- Unused utilities: `libcufftw`, `libnvfatbin`, `libnvptxcompiler`
+Build the bundles from NVIDIA's downloads (cached in `~/.nerves/dl`, a few
+minutes; needs `mksquashfs` with zstd support):
 
-To customize which libraries are kept, modify the `REQUIRED_LIBS` and
-`UNUSED_PATTERNS` arrays in the script.
+```sh
+scripts/build-nvidia-bundles.sh      # writes ~/.nerves/dl/nvidia-bundles/
+```
+
+Then, from your firmware project, upload them to a device. This verifies the
+checksums, removes old versions and mounts them without a reboot:
+
+```sh
+mix nvidia.bundles.upload nerves.local
+```
+
+Bundles live on the application data partition, so they survive firmware
+updates; reinstall them after a full reflash that erases `/root`.
+
+**Licensing:** the bundles only contain files NVIDIA allows to be
+redistributed (CUDA EULA Attachment A, cuDNN runtime libraries; NCCL is
+BSD-3-Clause). The CUDA and cuDNN licenses only permit redistributing them as
+part of your application, not as a stand-alone product, so this project
+doesn't publish the bundles: build them with the script, which downloads
+from NVIDIA, and install them on your devices.
+
+### Building the stack into the image instead
+
+The `nvidia-cuda-toolkit`, `nvidia-cudnn` and `nvidia-nccl` packages are still
+available for an all-in-one image: enable them instead of
+`nvidia-cuda-bundles` in `nerves_defconfig`. The `post-build-nvidia-cleanup.sh`
+script (also used for the bundles) keeps only the libraries needed by
+EXLA/Evision; edit its `REQUIRED_LIBS` and `UNUSED_PATTERNS` arrays to
+customize it. Note that these packages also install CUDA developer tools and
+headers, which NVIDIA's license doesn't allow you to redistribute.
+
+### Building the system
+
+Hosts newer than Buildroot supports (e.g. Ubuntu 26.04) must build in Docker:
+set `NERVES_BUILD_RUNNER=docker`. `support/docker/Dockerfile` remaps the
+container's build user to your uid/gid.
 
 ## Linux kernel and RPi firmware/userland
 

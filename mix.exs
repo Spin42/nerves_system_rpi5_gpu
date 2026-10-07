@@ -44,7 +44,7 @@ defmodule NervesSystemRpi5Gpu.MixProject do
   defp nerves_package do
     [
       type: :system,
-      artifact_sites: [{:github_releases, "#{@github_organization}/#{@app}"}] ++ dropbox_site(),
+      artifact_sites: [{:github_releases, "#{@github_organization}/#{@app}"}],
       build_runner: build_runner(),
       build_runner_config: build_runner_config(),
       build_runner_opts: build_runner_opts(),
@@ -65,23 +65,6 @@ defmodule NervesSystemRpi5Gpu.MixProject do
       ],
       checksum: package_files()
     ]
-  end
-
-  # Artifacts too big for GitHub releases are shared from Dropbox. A Dropbox
-  # shared link serves the same file whatever name is requested, so only offer
-  # it for the exact release it holds. Otherwise any local change would
-  # silently "download" the old system instead of building it.
-  @dropbox_artifacts %{
-    "0.8.0" =>
-      {"https://www.dropbox.com/scl/fi/wqekrb8lbkyaevbjo29hq",
-       %{"rlkey" => "0oxfpz9ug71vrm8exn7x1docn", "e" => "1", "st" => "xe1sgi2n", "dl" => "1"}}
-  }
-
-  defp dropbox_site do
-    case @dropbox_artifacts do
-      %{@version => {url, params}} -> [{:prefix, url, query_params: params}]
-      _ -> []
-    end
   end
 
   defp deps do
@@ -124,10 +107,14 @@ defmodule NervesSystemRpi5Gpu.MixProject do
   defp package_files do
     [
       "fwup_include",
+      "lib",
       "package",
+      "scripts",
+      "support",
       "rootfs_overlay",
       "Config.in",
       "external.mk",
+      "nvidia-versions",
       "busybox.fragment",
       "post-build-nvidia-cleanup.sh",
       "CHANGELOG.md",

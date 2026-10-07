@@ -12,6 +12,36 @@ follows:
    releases, and Linux kernel updates. They're also made to fix bugs and add
    features to the build infrastructure.
 
+## v0.9.0
+
+This is a breaking change: the CUDA toolkit, cuDNN and NCCL libraries are no
+longer part of the system image. They ship as separate squashfs bundles that
+are installed once on the device's data partition. The system artifact and the
+firmware shrink by several GB and only the bundles change when the CUDA stack
+is updated.
+
+* Changes
+  * New `nvidia-cuda-bundles` package (replaces enabling
+    `nvidia-cuda-toolkit`, `nvidia-cudnn` and `nvidia-nccl` in the image):
+    installs `/etc/nvidia-bundles` (the expected bundle ids), the
+    `/opt/nvidia/{cuda,cudnn,nccl}` mount points and `/usr/local/cuda`
+    (-> `/opt/nvidia/cuda`).
+  * `nvidia-init` loop-mounts `/root/nvidia/<id>-aarch64.squashfs` on
+    `/opt/nvidia/<component>` at boot (falls back to another version with a
+    warning, logs to the kernel log). `nvidia-init --mount-bundles` mounts
+    newly uploaded bundles without rebooting.
+  * erlinit sets `LD_LIBRARY_PATH` to the bundles' `lib` directories.
+  * `scripts/build-nvidia-bundles.sh` builds the bundles from NVIDIA's
+    redistributable archives (no Buildroot needed); versions come from
+    `nvidia-versions`, shared with the in-image packages.
+  * `mix nvidia.bundles.upload` uploads, verifies and mounts the bundles on a
+    device.
+  * Enable zstd squashfs support in the kernel (bundles are zstd compressed).
+  * The system artifact (~530 MB) fits GitHub releases again: the Dropbox
+    artifact site is removed.
+  * The driver userspace (libcuda, NVML, nvidia-smi, OpenCL) stays in the
+    system since it must match the kernel module version.
+
 ## v0.8.1
 
 * Changes
