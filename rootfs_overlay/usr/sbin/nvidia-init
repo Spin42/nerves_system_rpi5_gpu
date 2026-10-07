@@ -17,6 +17,24 @@ log() {
     echo "nvidia-init: $*" > /dev/kmsg 2>/dev/null || echo "nvidia-init: $*"
 }
 
+# run_with_timeout <seconds> <command...>: run in the background and stop
+# waiting (leaving it running) after <seconds>. Returns 124 on timeout.
+run_with_timeout() {
+    limit=$1
+    shift
+    "$@" </dev/null >/dev/null 2>&1 &
+    pid=$!
+    waited=0
+    while kill -0 "$pid" 2>/dev/null; do
+        if [ "$waited" -ge "$limit" ]; then
+            return 124
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    wait "$pid"
+}
+
 # Loop-mount the CUDA/cuDNN/NCCL bundles listed in /etc/nvidia-bundles
 # ("<component> <id>" lines) from /root/nvidia/<id>-aarch64.squashfs onto
 # /opt/nvidia/<component>. Another version of a component is used as a
@@ -69,12 +87,44 @@ has_gpu() {
     return 1
 }
 
+# Loading the proprietary modules may hang or crash the kernel (experimental
+# on the Pi 5). Never let that block the boot:
+# * a marker on the data partition records an attempt in progress; if it is
+#   still there at the next boot, the previous attempt crashed or hung, so skip
+# * the load runs in the background and the boot continues after a timeout,
+#   so Erlang, the network and SSH still come up to debug it (dmesg)
+ATTEMPT_MARKER=/root/nvidia/.proprietary-attempt
+LOAD_TIMEOUT=20
+
 load_proprietary() {
     [ -f "$PROPRIETARY/nvidia.ko" ] || return 1
+
+    if [ -f "$ATTEMPT_MARKER" ]; then
+        log "previous proprietary module load didn't finish, skipping it (rm $ATTEMPT_MARKER to retry)"
+        return 1
+    fi
+    if [ -d /root/nvidia ]; then
+        echo "$(date)" > "$ATTEMPT_MARKER"
+        sync
+    fi
+
     rmmod nvidia_drm nvidia_modeset nvidia_uvm nvidia 2>/dev/null
-    insmod "$PROPRIETARY/nvidia.ko" || return 1
-    insmod "$PROPRIETARY/nvidia-uvm.ko"
-    log "using the proprietary kernel modules (GPU not supported by the open ones)"
+    log "loading the proprietary kernel modules (GPU not supported by the open ones)"
+    run_with_timeout "$LOAD_TIMEOUT" sh -c "insmod $PROPRIETARY/nvidia.ko && insmod $PROPRIETARY/nvidia-uvm.ko"
+    case $? in
+        0) log "proprietary kernel modules loaded" ;;
+        124)
+            log "proprietary module load still running after ${LOAD_TIMEOUT}s, continuing the boot without the GPU"
+            return 1
+            ;;
+        *)
+            log "proprietary module load failed"
+            rm -f "$ATTEMPT_MARKER"
+            return 1
+            ;;
+    esac
+    # The marker stays until the GPU initialized (persistence mode below)
+    USING_PROPRIETARY=1
 }
 
 if modprobe nvidia 2>/dev/null && has_gpu; then
@@ -118,7 +168,13 @@ fi
 # open (each nvidia-smi or CUDA/OpenCL program) boots the GPU's GSP firmware
 # and every close tears it down again; frequent cycles (e.g. polling
 # nvidia-smi) eventually made the GPU fall off the bus (Xid 79) on the Pi 5.
-nvidia-smi -pm 1 >/dev/null 2>&1
+# The first open initializes the GPU, which can hang with the proprietary
+# modules: don't let it block the boot either.
+if run_with_timeout 30 sh -c "nvidia-smi -pm 1 >/dev/null 2>&1"; then
+    [ -n "$USING_PROPRIETARY" ] && rm -f "$ATTEMPT_MARKER" && log "GPU initialized"
+else
+    log "GPU initialization (nvidia-smi -pm 1) failed or timed out"
+fi
 
 mount_bundles
 exit 0
